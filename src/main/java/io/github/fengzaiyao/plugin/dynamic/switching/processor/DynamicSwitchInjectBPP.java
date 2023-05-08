@@ -2,7 +2,11 @@ package io.github.fengzaiyao.plugin.dynamic.switching.processor;
 
 import io.github.fengzaiyao.plugin.dynamic.switching.core.DynamicSwitch;
 import io.github.fengzaiyao.plugin.dynamic.switching.core.SwitchStrategy;
-import javassist.*;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.CtField;
+import javassist.CtMethod;
+import javassist.CtConstructor;
 import org.springframework.beans.factory.annotation.InjectionMetadata;
 import org.springframework.core.annotation.AnnotationAttributes;
 import org.springframework.util.ReflectionUtils;
@@ -33,20 +37,27 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
         // 3、生成代理对象
         String instanceClazzName = injectedType.getCanonicalName() + "$DynamicSwitch";
         ClassPool pool = ClassPool.getDefault();
-        // 1、设置接口
+        // 3.1、设置接口
         CtClass clazz = pool.makeClass(instanceClazzName);
         clazz.setInterfaces(new CtClass[]{pool.get(injectedType.getCanonicalName())});
-        // 2、设置属性
+        // 3.2、设置属性
         CtField ctField_1 = new CtField(pool.get(SwitchStrategy.class.getCanonicalName()), "strategy", clazz);
         CtField ctField_2 = new CtField(pool.get(List.class.getCanonicalName()), "candidates", clazz);
         ctField_1.setModifiers(Modifier.PUBLIC);
         ctField_2.setModifiers(Modifier.PUBLIC);
         clazz.addField(ctField_1);
         clazz.addField(ctField_2);
-        // 3、设置方法
+        // 3.3、设置方法
+        // 设置 get 方法
+        CtClass[] ctParam1 = {pool.get(Object.class.getCanonicalName())};
+        CtMethod ctMethod1 = new CtMethod(pool.get(injectedType.getCanonicalName()), "switchInstance", ctParam1, clazz);
+        ctMethod1.setModifiers(Modifier.PUBLIC);
+        ctMethod1.setBody("{return $0.strategy.switchInstance($0.candidates, $1);}");
+        clazz.addMethod(ctMethod1);
+        // 设置额外方法 and 接口方法
         ReflectionUtils.doWithMethods(injectedType, method -> {
             try {
-                // 3.1、设置额外方法
+                // 设置额外方法
                 Class<?>[] params = method.getParameterTypes();
                 CtClass[] paramTypes = new CtClass[params.length + 1];
                 paramTypes[0] = pool.get(Object.class.getCanonicalName());
@@ -73,7 +84,7 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
                 ctMethod.setModifiers(Modifier.PUBLIC);
                 ctMethod.setBody(total.toString());
                 clazz.addMethod(ctMethod);
-                // 3.2、设置接口方法
+                // 设置接口方法
                 // 方法入参
                 Class<?>[] params0 = method.getParameterTypes();
                 CtClass[] paramTypes0 = new CtClass[params0.length];
