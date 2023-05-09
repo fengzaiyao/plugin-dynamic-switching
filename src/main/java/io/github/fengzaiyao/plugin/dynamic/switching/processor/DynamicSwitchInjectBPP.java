@@ -16,13 +16,17 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
 
     public DynamicSwitchInjectBPP() {
         super(DynamicSwitch.class);
     }
+
+    private Map<String, Class<?>> CT_CLASS_CACHE = new ConcurrentHashMap<>();
 
     @Override
     protected Object getInjectedObject(AnnotationAttributes attributes, Object bean, String beanName, Class<?> injectedType, InjectionMetadata.InjectedElement injectedElement) throws Throwable {
@@ -37,6 +41,11 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
         SwitchStrategy strategyInstance = context.getBean(strategy);
         // 3、生成代理对象
         String instanceClazzName = injectedType.getCanonicalName() + "$plugin_dynamic_switch";
+        if (CT_CLASS_CACHE.containsKey(instanceClazzName)) {
+            Class<?> clazz = CT_CLASS_CACHE.get(instanceClazzName);
+            Constructor<?> constructor = clazz.getConstructor(SwitchStrategy.class, List.class);
+            return constructor.newInstance(strategyInstance, candidates);
+        }
         ClassPool pool = ClassPool.getDefault();
         // 3.1、设置接口
         CtClass clazz = pool.makeClass(instanceClazzName);
@@ -115,8 +124,11 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
         if (attributes.getBoolean("generateFile")) {
             clazz.writeFile(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("")).toURI().getPath());
         }
+        Class<?> finalClazz = clazz.toClass();
+        // 加入缓存,避免下次重复该类
+        CT_CLASS_CACHE.put(instanceClazzName, finalClazz);
         // 6、创建对象
-        Constructor<?> constructor = clazz.toClass().getConstructor(SwitchStrategy.class, List.class);
+        Constructor<?> constructor = finalClazz.getConstructor(SwitchStrategy.class, List.class);
         return constructor.newInstance(strategyInstance, candidates);
     }
 }
