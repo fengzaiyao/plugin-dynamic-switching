@@ -94,7 +94,8 @@ public abstract class BaseAnnotationInjectBPP implements MergedBeanDefinitionPos
             AnnotationInjectionMetadata injectionMetadata = findInjectionMetadata(bean, bean.getClass(), beanName, pvs);
             injectionMetadata.inject(bean, beanName, pvs);
         } catch (Throwable throwable) {
-            throw new IllegalStateException(BaseAnnotationInjectBPP.class.getName() + "inject class=" + bean.getClass() + " is fail, message = " + throwable.getMessage(), throwable);
+            String message = BaseAnnotationInjectBPP.class.getName() + "自动注入出现异常, Class:%s, Message:%s";
+            throw new IllegalStateException(String.format(message, bean.getClass().getCanonicalName(), throwable.getMessage()), throwable);
         }
         return pvs;
     }
@@ -187,18 +188,21 @@ public abstract class BaseAnnotationInjectBPP implements MergedBeanDefinitionPos
      */
     private AnnotationInjectionMetadata findInjectionMetadata(Object bean, Class<?> beanType, String beanName, PropertyValues pvs) {
         if (beanType == null) {
-            throw new IllegalArgumentException("beanType is null");
+            throw new IllegalArgumentException(BaseAnnotationInjectBPP.class.getName() + "处理 BeanType 不能为空");
         }
-        String clazzName = beanType.getCanonicalName();
-        AnnotationInjectionMetadata injectionMetadata = injectionMetadataCache.get(clazzName);
+        String canonicalName = beanType.getCanonicalName();
+        if (canonicalName == null) {
+            return buildInjectionMetadata(beanType);
+        }
+        AnnotationInjectionMetadata injectionMetadata = injectionMetadataCache.get(canonicalName);
         if (InjectionMetadata.needsRefresh(injectionMetadata, beanType)) {
             synchronized (injectionMetadataCache) {
-                injectionMetadata = injectionMetadataCache.get(clazzName);
+                injectionMetadata = injectionMetadataCache.get(canonicalName);
                 if (InjectionMetadata.needsRefresh(injectionMetadata, beanType)) {
                     injectionMetadata = buildInjectionMetadata(beanType);
                     // 没有搜索到有任何标记有该注解的地方,则忽略
                     if (!(CollectionUtils.isEmpty(injectionMetadata.getFieldElements()) && CollectionUtils.isEmpty(injectionMetadata.getMethodElements()))) {
-                        injectionMetadataCache.put(clazzName, injectionMetadata);
+                        injectionMetadataCache.put(canonicalName, injectionMetadata);
                     }
                 }
             }

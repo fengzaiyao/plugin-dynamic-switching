@@ -4,5 +4,5 @@ import java.util.List;
 
 public interface SwitchStrategy {
 
-    <T> T switchInstance(List<T> candidates, Object args);
+    <T> T switchInstance(List<T> candidates, Object arg);
 }

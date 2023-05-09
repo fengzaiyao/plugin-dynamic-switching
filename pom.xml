@@ -5,7 +5,7 @@
 
     <groupId>io.github.fengzaiyao</groupId>
     <artifactId>plugin-dynamic-switching</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>plugin-dynamic-switching</name>
     <description>fengzaiyao plugin about dynamic-switch</description>
     <packaging>jar</packaging>
@@ -92,6 +92,7 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
             <!--2.打包源码的插件-->
@@ -117,9 +118,12 @@
                     <!-- 忽略生成文档中的错误 -->
                     <additionalparam>-Xdoclint:none</additionalparam>
                     <aggregate>true</aggregate>
-                    <charset>UTF-8</charset><!-- utf-8读取文件 -->
-                    <encoding>UTF-8</encoding><!-- utf-8进行编码代码 -->
-                    <docencoding>UTF-8</docencoding><!-- utf-8进行编码文档 -->
+                    <!-- utf-8读取文件 -->
+                    <charset>UTF-8</charset>
+                    <!-- utf-8进行编码代码 -->
+                    <encoding>UTF-8</encoding>
+                    <!-- utf-8进行编码文档 -->
+                    <docencoding>UTF-8</docencoding>
                 </configuration>
                 <executions>
                     <execution>
