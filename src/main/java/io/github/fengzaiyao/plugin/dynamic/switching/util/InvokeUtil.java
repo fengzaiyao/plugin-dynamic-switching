@@ -26,12 +26,12 @@ public class InvokeUtil {
         return (T) method.invoke(object, data);
     }
 
-    public static <T> T switchInstance(Object object, Object data) {
-        Object instance = null;
+    public static <T> T switchInstance(T object, Object data) {
+        T instance = null;
         try {
             instance = switchInstanceWithEx(object, data);
         } catch (Exception ignored) {
         }
-        return (T) instance;
+        return instance;
     }
 }
