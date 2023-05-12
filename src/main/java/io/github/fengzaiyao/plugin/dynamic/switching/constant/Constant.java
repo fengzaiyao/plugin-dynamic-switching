@@ -1,12 +1,14 @@
 package io.github.fengzaiyao.plugin.dynamic.switching.constant;
 
-public class Constant {
+public interface Constant {
 
-    public static String METHOD_SWITCH_INSTANCE = "switchInstance$plugin_dynamic_switch";
+    String FIELD_NAME_STRATEGY = "STRATEGY";
 
-    public static String INTERFACE_METHOD_SWITCH_INSTANCE = "switchInstance";
+    String FIELD_NAME_CANDIDATES = "CANDIDATES";
 
-    public static String FIELD_NAME_STRATEGY = "strategy";
+    String METHOD_NAME_PREFIX = "PDS$";
 
-    public static String FIELD_NAME_CANDIDATES = "candidates";
+    String METHOD_NAME_SWITCH_INSTANCE = METHOD_NAME_PREFIX + "SWITCH_INSTANCE";
+
+    String METHOD_INTERFACE_SWITCH_INSTANCE = "switchInstance";
 }

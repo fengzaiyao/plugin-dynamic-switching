@@ -53,16 +53,16 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
         // 3.2、设置属性
         CtField ctField_1 = new CtField(pool.get(SwitchStrategy.class.getCanonicalName()), Constant.FIELD_NAME_STRATEGY, clazz);
         CtField ctField_2 = new CtField(pool.get(List.class.getCanonicalName()), Constant.FIELD_NAME_CANDIDATES, clazz);
-        ctField_1.setModifiers(Modifier.PUBLIC);
-        ctField_2.setModifiers(Modifier.PUBLIC);
+        ctField_1.setModifiers(Modifier.PRIVATE);
+        ctField_2.setModifiers(Modifier.PRIVATE);
         clazz.addField(ctField_1);
         clazz.addField(ctField_2);
         // 3.3、设置方法
         // 设置 get 方法
         CtClass[] ctParam1 = {pool.get(Object.class.getCanonicalName())};
-        CtMethod ctMethod1 = new CtMethod(pool.get(injectedType.getCanonicalName()), Constant.METHOD_SWITCH_INSTANCE, ctParam1, clazz);
+        CtMethod ctMethod1 = new CtMethod(pool.get(injectedType.getCanonicalName()), Constant.METHOD_NAME_SWITCH_INSTANCE, ctParam1, clazz);
         ctMethod1.setModifiers(Modifier.PUBLIC);
-        ctMethod1.setBody("{return $0." + Constant.FIELD_NAME_STRATEGY + "." + Constant.INTERFACE_METHOD_SWITCH_INSTANCE + "($0." + Constant.FIELD_NAME_CANDIDATES + ", $1);}");
+        ctMethod1.setBody("{return $0." + Constant.FIELD_NAME_STRATEGY + "." + Constant.METHOD_INTERFACE_SWITCH_INSTANCE + "($0." + Constant.FIELD_NAME_CANDIDATES + ", $1);}");
         clazz.addMethod(ctMethod1);
         // 设置额外方法 and 接口方法
         ReflectionUtils.doWithMethods(injectedType, method -> {
@@ -82,7 +82,7 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
                 }
                 StringBuilder total = new StringBuilder();
                 total.append("{").append("\n");
-                total.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".").append(Constant.INTERFACE_METHOD_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES).append(", $1);").append("\n");
+                total.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".").append(Constant.METHOD_INTERFACE_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES).append(", $1);").append("\n");
                 if (method.getReturnType() == void.class) {
                     total.append("((").append(injectedType.getCanonicalName()).append(") instance).").append(method.getName()).append("(").append(paramBuilder.toString()).append(");").append("\n");
                 } else {
@@ -90,7 +90,7 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
                 }
                 total.append("}");
                 CtClass retType = pool.get(method.getReturnType().getCanonicalName());
-                CtMethod ctMethod = new CtMethod(retType, method.getName(), paramTypes, clazz);
+                CtMethod ctMethod = new CtMethod(retType, Constant.METHOD_NAME_PREFIX + method.getName(), paramTypes, clazz);
                 ctMethod.setModifiers(Modifier.PUBLIC);
                 ctMethod.setBody(total.toString());
                 clazz.addMethod(ctMethod);
@@ -107,7 +107,7 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
                 // 访问权限
                 ctMethod0.setModifiers(Modifier.PUBLIC);
                 // 方法体
-                ctMethod0.setBody("throw new RuntimeException(\"不能直接调用此方法\");");
+                ctMethod0.setBody("throw new RuntimeException(\"被 @DynamicSwitch 注解标记的接口方法不能直接调用,请使用 InvokeUtil 调用方法\");");
                 clazz.addMethod(ctMethod0);
             } catch (Exception ex) {
                 ex.printStackTrace();
