@@ -16,6 +16,7 @@ import org.springframework.util.ReflectionUtils;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -60,82 +61,88 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
         clazz.addField(ctField_1);
         clazz.addField(ctField_2);
         // 3.3、设置方法
-        // 设置 get 方法
+        // 设置 switchInstance 方法
         CtClass[] ctParam1 = {pool.get(Object.class.getCanonicalName())};
         CtMethod ctMethod1 = new CtMethod(pool.get(injectedType.getCanonicalName()), Constant.METHOD_NAME_SWITCH_INSTANCE, ctParam1, clazz);
         ctMethod1.setModifiers(Modifier.PUBLIC);
         ctMethod1.setBody("{return $0." + Constant.FIELD_NAME_STRATEGY + "." + Constant.METHOD_INTERFACE_SWITCH_INSTANCE + "($0." + Constant.FIELD_NAME_CANDIDATES + ", $1);}");
         clazz.addMethod(ctMethod1);
-        // 设置额外方法 and 接口方法
+        // 设置 接口方法 and 拓展方法
         ReflectionUtils.doWithMethods(injectedType, method -> {
             try {
+                // ========================================== 接口方法 =================================================
                 // 找到被 @DynamicParam 注解标记的入参位置 ps:只找第一个
+                StringBuilder params = new StringBuilder();
                 int paramIndex = -1;
                 Parameter[] parameters = method.getParameters();
                 for (int i = 1; i <= parameters.length; i++) {
                     DynamicParam annotation = parameters[i - 1].getAnnotation(DynamicParam.class);
-                    if (!Objects.isNull(annotation)) {
+                    if (paramIndex == -1 && !Objects.isNull(annotation)) {
                         paramIndex = i;
-                        break;
                     }
+                    params.append("$").append(i).append(",");
+                }
+                if (params.length() > 0) {
+                    params.deleteCharAt(params.length() - 1);
                 }
                 // 构建方法 body
-                StringBuilder methodBody = new StringBuilder();
-                methodBody.append("{");
+                StringBuilder body = new StringBuilder();
+                body.append("{").append("\n");
                 if (paramIndex != -1) {
-                    methodBody.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".").append(Constant.METHOD_INTERFACE_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES).append(", $").append(paramIndex).append(");").append("\n");
+                    body.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".").append(Constant.METHOD_INTERFACE_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES).append(", $").append(paramIndex).append(");").append("\n");
+                    String str = "((" + injectedType.getCanonicalName() + ") instance)." + method.getName() + "(" + params.toString() + ");" + "\n";
+                    if (method.getReturnType() != void.class) {
+                        str = "return " + str;
+                    }
+                    body.append(str);
                 } else {
-                    methodBody.append("throw new RuntimeException(\"接口被 @DynamicSwitch 注解标记并且方法中没有带有 @DynamicParam 注解不能直接调用,请使用 InvokeUtil 调用方法\");");
+                    body.append("throw new RuntimeException(\"接口被 @DynamicSwitch 注解标记并且方法中没有带有 @DynamicParam 注解不能直接调用,请使用 InvokeUtil 调用方法\");");
                 }
-                methodBody.append("}");
-
-
-                // 设置接口方法
-                // 方法入参
-                Class<?>[] params0 = method.getParameterTypes();
-                CtClass[] paramTypes0 = new CtClass[params0.length];
-                for (int i = 0; i < params0.length; i++) {
-                    paramTypes0[i] = pool.get(params0[i].getCanonicalName());
+                body.append("}");
+                // 构建入参类型
+                Class<?>[] paramTypesClazz = method.getParameterTypes();
+                CtClass[] paramTypes = new CtClass[paramTypesClazz.length];
+                for (int i = 0; i < paramTypesClazz.length; i++) {
+                    paramTypes[i] = pool.get(paramTypesClazz[i].getCanonicalName());
                 }
-                // 返回类型
+                // 构建返回类型
+                CtClass retType = pool.get(method.getReturnType().getCanonicalName());
+                // 创建整个方法
+                CtMethod ctMethod = new CtMethod(retType, method.getName(), paramTypes, clazz);
+                ctMethod.setModifiers(Modifier.PUBLIC);
+                ctMethod.setBody(body.toString());
+                clazz.addMethod(ctMethod);
+
+                // ========================================== 拓展方法 =================================================
+
+                // 构建入参类型
+                Class<?>[] paramTypesClazz0 = method.getParameterTypes();
+                CtClass[] paramTypes0 = new CtClass[paramTypesClazz0.length + 1];
+                paramTypes0[0] = pool.get(Object.class.getCanonicalName());
+                StringBuilder params0 = new StringBuilder();
+                for (int i = 0; i < paramTypesClazz0.length; i++) {
+                    paramTypes0[i + 1] = pool.get(paramTypesClazz0[i].getCanonicalName());
+                    params0.append("$").append(i + 2).append(",");
+                }
+                if (params0.length() > 0) {
+                    params0.deleteCharAt(params0.length() - 1);
+                }
+                // 构建方法 body
+                StringBuilder body0 = new StringBuilder();
+                body0.append("{").append("\n");
+                body0.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".").append(Constant.METHOD_INTERFACE_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES).append(", $1);").append("\n");
+                String str0 = "((" + injectedType.getCanonicalName() + ") instance)." + method.getName() + "(" + params0.toString() + ");" + "\n";
+                if (method.getReturnType() != void.class) {
+                    str0 = "return " + str0;
+                }
+                body0.append(str0);
+                body0.append("}");
+                // 创建整个方法
                 CtClass retType0 = pool.get(method.getReturnType().getCanonicalName());
-                CtMethod ctMethod0 = new CtMethod(retType0, method.getName(), paramTypes0, clazz);
-                // 访问权限
+                CtMethod ctMethod0 = new CtMethod(retType0, Constant.METHOD_NAME_PREFIX + method.getName(), paramTypes0, clazz);
                 ctMethod0.setModifiers(Modifier.PUBLIC);
-                // 方法体
-                ctMethod0.setBody("throw new RuntimeException(\"接口被 @DynamicSwitch 注解标记并且方法中没有带有 @DynamicParam 注解不能直接调用,请使用 InvokeUtil 调用方法\");");
+                ctMethod0.setBody(body0.toString());
                 clazz.addMethod(ctMethod0);
-
-
-//
-//                // 设置额外方法
-//                Class<?>[] params = method.getParameterTypes();
-//                CtClass[] paramTypes = new CtClass[params.length + 1];
-//                paramTypes[0] = pool.get(Object.class.getCanonicalName());
-//                StringBuilder paramBuilder = new StringBuilder();
-//                for (int i = 0; i < params.length; i++) {
-//                    String canonicalName = params[i].getCanonicalName();
-//                    paramTypes[i + 1] = pool.get(canonicalName);
-//                    paramBuilder.append("$").append(i + 2).append(",");
-//                }
-//                if (paramBuilder.length() > 0) {
-//                    paramBuilder.deleteCharAt(paramBuilder.length() - 1);
-//                }
-//                StringBuilder total = new StringBuilder();
-//                total.append("{").append("\n");
-//                total.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".").append(Constant.METHOD_INTERFACE_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES).append(", $1);").append("\n");
-//                if (method.getReturnType() == void.class) {
-//                    total.append("((").append(injectedType.getCanonicalName()).append(") instance).").append(method.getName()).append("(").append(paramBuilder.toString()).append(");").append("\n");
-//                } else {
-//                    total.append("return ((").append(injectedType.getCanonicalName()).append(") instance).").append(method.getName()).append("(").append(paramBuilder.toString()).append(");").append("\n");
-//                }
-//                total.append("}");
-//                CtClass retType = pool.get(method.getReturnType().getCanonicalName());
-//                CtMethod ctMethod = new CtMethod(retType, Constant.METHOD_NAME_PREFIX + method.getName(), paramTypes, clazz);
-//                ctMethod.setModifiers(Modifier.PUBLIC);
-//                ctMethod.setBody(total.toString());
-//                clazz.addMethod(ctMethod);
-
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
@@ -147,9 +154,12 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
         ctConstructor.setModifiers(Modifier.PUBLIC);
         ctConstructor.setBody("{$0." + Constant.FIELD_NAME_STRATEGY + " = $1;$0." + Constant.FIELD_NAME_CANDIDATES + " = $2;}");
         clazz.addConstructor(ctConstructor);
-        // 5、生成代理文件(开发时可能需要用到)
+        // 5、生成.class文件(开发时可能需要用到)
         if (attributes.getBoolean("generateFile")) {
-            clazz.writeFile(Objects.requireNonNull(Thread.currentThread().getContextClassLoader().getResource("")).toURI().getPath());
+            URL resource = Thread.currentThread().getContextClassLoader().getResource("");
+            if (resource != null) {
+                clazz.writeFile(resource.toURI().getPath());
+            }
         }
         Class<?> finalClazz = clazz.toClass();
         // 加入缓存,避免下次重复该类
