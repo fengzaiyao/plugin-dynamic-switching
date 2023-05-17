@@ -5,7 +5,7 @@
 
     <groupId>io.github.fengzaiyao</groupId>
     <artifactId>plugin-dynamic-switching</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
     <name>plugin-dynamic-switching</name>
     <description>fengzaiyao plugin about dynamic-switch</description>
     <packaging>jar</packaging>

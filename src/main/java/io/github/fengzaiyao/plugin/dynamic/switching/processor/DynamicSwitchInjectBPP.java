@@ -4,6 +4,7 @@ import io.github.fengzaiyao.plugin.dynamic.switching.constant.Constant;
 import io.github.fengzaiyao.plugin.dynamic.switching.core.DynamicParam;
 import io.github.fengzaiyao.plugin.dynamic.switching.core.DynamicSwitch;
 import io.github.fengzaiyao.plugin.dynamic.switching.core.SwitchStrategy;
+import io.github.fengzaiyao.plugin.dynamic.switching.util.ExpressionUtil;
 import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtField;
@@ -12,6 +13,7 @@ import javassist.CtConstructor;
 import org.springframework.beans.factory.annotation.InjectionMetadata;
 import org.springframework.core.annotation.AnnotationAttributes;
 import org.springframework.util.ReflectionUtils;
+import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
@@ -89,7 +91,29 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
                 StringBuilder body = new StringBuilder();
                 body.append("{").append("\n");
                 if (paramIndex != -1) {
-                    body.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".").append(Constant.METHOD_INTERFACE_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES).append(", $").append(paramIndex).append(");").append("\n");
+                    Parameter parameter = parameters[paramIndex - 1];
+                    String expression = parameter.getAnnotation(DynamicParam.class).value().trim();
+                    if (!StringUtils.isEmpty(expression)) {
+                        // 有spEL表达式,先解析出对应的值
+                        body.append("java.lang.Object param = ").append(ExpressionUtil.class.getCanonicalName()).append(".getValue")
+                                .append("($").append(paramIndex).append(",")
+                                .append("\"").append(parameter.getName()).append("\"").append(",")
+                                .append("\"").append(expression).append("\"")
+                                .append(");");
+                        // 再选择实例对象
+                        body.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".")
+                                .append(Constant.METHOD_INTERFACE_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES)
+                                .append(",")
+                                .append("param")
+                                .append(");").append("\n");
+                    } else {
+                        // 无spEL表达式直接选择实例对象
+                        body.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".")
+                                .append(Constant.METHOD_INTERFACE_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES)
+                                .append(",")
+                                .append("$").append(paramIndex)
+                                .append(");").append("\n");
+                    }
                     String str = "((" + injectedType.getCanonicalName() + ") instance)." + method.getName() + "(" + params.toString() + ");" + "\n";
                     if (method.getReturnType() != void.class) {
                         str = "return " + str;
@@ -113,36 +137,35 @@ public class DynamicSwitchInjectBPP extends BaseAnnotationInjectBPP {
                 ctMethod.setBody(body.toString());
                 clazz.addMethod(ctMethod);
 
-                // ========================================== 拓展方法 =================================================
-
-                // 构建入参类型
-                Class<?>[] paramTypesClazz0 = method.getParameterTypes();
-                CtClass[] paramTypes0 = new CtClass[paramTypesClazz0.length + 1];
-                paramTypes0[0] = pool.get(Object.class.getCanonicalName());
-                StringBuilder params0 = new StringBuilder();
-                for (int i = 0; i < paramTypesClazz0.length; i++) {
-                    paramTypes0[i + 1] = pool.get(paramTypesClazz0[i].getCanonicalName());
-                    params0.append("$").append(i + 2).append(",");
-                }
-                if (params0.length() > 0) {
-                    params0.deleteCharAt(params0.length() - 1);
-                }
-                // 构建方法 body
-                StringBuilder body0 = new StringBuilder();
-                body0.append("{").append("\n");
-                body0.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".").append(Constant.METHOD_INTERFACE_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES).append(", $1);").append("\n");
-                String str0 = "((" + injectedType.getCanonicalName() + ") instance)." + method.getName() + "(" + params0.toString() + ");" + "\n";
-                if (method.getReturnType() != void.class) {
-                    str0 = "return " + str0;
-                }
-                body0.append(str0);
-                body0.append("}");
-                // 创建整个方法
-                CtClass retType0 = pool.get(method.getReturnType().getCanonicalName());
-                CtMethod ctMethod0 = new CtMethod(retType0, Constant.METHOD_NAME_PREFIX + method.getName(), paramTypes0, clazz);
-                ctMethod0.setModifiers(Modifier.PUBLIC);
-                ctMethod0.setBody(body0.toString());
-                clazz.addMethod(ctMethod0);
+                // =================================== 拓展方法,1.0.5 版本废弃 ==========================================
+//                // 构建入参类型
+//                Class<?>[] paramTypesClazz0 = method.getParameterTypes();
+//                CtClass[] paramTypes0 = new CtClass[paramTypesClazz0.length + 1];
+//                paramTypes0[0] = pool.get(Object.class.getCanonicalName());
+//                StringBuilder params0 = new StringBuilder();
+//                for (int i = 0; i < paramTypesClazz0.length; i++) {
+//                    paramTypes0[i + 1] = pool.get(paramTypesClazz0[i].getCanonicalName());
+//                    params0.append("$").append(i + 2).append(",");
+//                }
+//                if (params0.length() > 0) {
+//                    params0.deleteCharAt(params0.length() - 1);
+//                }
+//                // 构建方法 body
+//                StringBuilder body0 = new StringBuilder();
+//                body0.append("{").append("\n");
+//                body0.append("java.lang.Object instance = $0.").append(Constant.FIELD_NAME_STRATEGY).append(".").append(Constant.METHOD_INTERFACE_SWITCH_INSTANCE).append("($0.").append(Constant.FIELD_NAME_CANDIDATES).append(", $1);").append("\n");
+//                String str0 = "((" + injectedType.getCanonicalName() + ") instance)." + method.getName() + "(" + params0.toString() + ");" + "\n";
+//                if (method.getReturnType() != void.class) {
+//                    str0 = "return " + str0;
+//                }
+//                body0.append(str0);
+//                body0.append("}");
+//                // 创建整个方法
+//                CtClass retType0 = pool.get(method.getReturnType().getCanonicalName());
+//                CtMethod ctMethod0 = new CtMethod(retType0, Constant.METHOD_NAME_PREFIX + method.getName(), paramTypes0, clazz);
+//                ctMethod0.setModifiers(Modifier.PUBLIC);
+//                ctMethod0.setBody(body0.toString());
+//                clazz.addMethod(ctMethod0);
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
