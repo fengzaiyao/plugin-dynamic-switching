@@ -7,57 +7,61 @@
 <dependency>
     <groupId>io.github.fengzaiyao</groupId>
     <artifactId>plugin-dynamic-switching</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
 </dependency>
 ```
 
-2、为了更好演示效果，举个例子，下面是业务的 Service，一个接口和两个实现类
+2、为了演示动态切换服务，这里定义了一个Person类、一个接口、两个实现类
+
+```java
+public class Person {
+    private String username;
+    private String password;
+    public String getUsername() {
+        return username;
+    }
+}
+```
+
 ```java
 public interface ITestService {
 
-    // 注意被 @DynamicParam 注解标记的入参，传入的参数将会被作为 "额外传递的参数"，去选择 service，
-    // 只是会对，下面 第 4 点，第三种使用方式 有影响，其他两种使用方式不受影响
-    String sayHello(@DynamicParam String name111, String name222);
+    // @DynamicParam 标记了在调用方法时,哪个参数将会被作为 "传入的额外参数", 只会从左到头找到第一个标记为 @DynamicParam 的参数
+    String sayHello(@DynamicParam String name, String word);
+    
+    // @DynamicParam 同时支持spEL表达式,会调用 Person 类的 getUsername() 返回值作为 "传入的额外参数"，ps：#person 必须和参数名字同名
+    String sayHello(@DynamicParam("#person.getUsername()") Person person, String word);
+}
+```
+```java
+@Service
+public class TestService111 implements ITestService {
+    @Override
+    public String sayHello(String name, String word) {
+        return "service111：" + name + ":" + word;
+    }
+}
+```
+```java
+@Service
+public class TestService222 implements ITestService {
+    @Override
+    public String sayHello(String name, String word) {
+        return "service222：" + name + ":" + word;
+    }
+}
+```
+3、实现 SwitchStrategy 接口，自定义选择策略，这将会影响你选择哪个 service 进行调用
 
-    String eating(String food);
-}
-```
 ```java
-@Service
-public class TestServiceOne implements ITestService {
-    @Override
-    public String sayHello(String name111, String name222) {
-        return "sayHello-111";
-    }
-    @Override
-    public String eating(String food) {
-        return "eating-111";
-    }
-}
-```
-```java
-@Service
-public class TestServiceTwo implements ITestService {
-    @Override
-    public String sayHello(String name111, String name222) {
-        return "sayHello-222";
-    }
-    @Override
-    public String eating(String food) {
-        return "eating-222";
-    }
-}
-```
-3、实现 SwitchStrategy 接口，自定义选择策略，这将会影响你选择哪个 service 进行调用！！！
-```java
-// 记得使用 @Component 注入到 Spring 中
 @Component
-public class MySwitchStrategy implements SwitchStrategy {
-
-    // list 是候选 service 列表、arg  是你额外传递的参数
+public class TestStrategy implements SwitchStrategy {
+    
+    // candidates  => 候选 service 列表、arg => 传入的额外参数, return 的值,为真正调用方法的实例对象
     @Override
-    public <T> T switchInstance(List<T> list, Object arg) {
-        return list.get(0);
+    public <T> T switchInstance(List<T> candidates, Object arg) {
+        // 为方便演示,这里写死,取候选列表第一个
+        return candidates.get(0);
     }
 }
 ```
@@ -67,19 +71,23 @@ public class MySwitchStrategy implements SwitchStrategy {
 @RestController
 @RequestMapping(value = "/test")
 public class TestController {
-    
-    // 使用 @DynamicSwitch 进行依赖注入, MySwitchStrategy.class 指定你要使用那种选择策略(上一步注入的自定义选择策略)
-    @DynamicSwitch(MySwitchStrategy.class)
+
+    // 使用 @DynamicSwitch 进行依赖注入，TestStrategy 为上面自定义的选择策略类
+    @DynamicSwitch(TestStrategy.class)
     private ITestService testService;
 
     @GetMapping("/t1")
-    public void selectService() throws Exception {
-        // 第一种使用方式：调用 switchInstance 选择出 service 实例，然后你就正常调用就行了
-        String result1 = InvokeUtil.switchInstance(testService, "额外传递的参数").sayHello("水水", "果果");
-        // 第二种使用方式：调用 invokeMethod 方法，直接调用 service 方法，sayHello 是方法名字
-        String result2 = InvokeUtil.invokeMethod(testService, "sayHello", "额外传递的参数", "水水", "果果");
-        // 第三种使用方式：直接调用，调用的方法的入参，有一个必须被 @DynamicParam 注解标记
-        String result3 = testService.sayHello("额外传递的参数", "水水");
+    public void t1() {
+        
+        // 第一种方式：调用 switchInstance 选择出 service 实例，然后你就正常调用就行了
+        String result1 = InvokeUtil.switchInstance(testService, "额外传递的参数").sayHello("张三", "西瓜");
+        // 第二种方式：直接调用，参数被 @DynamicParam 标记才能直接调用
+        String result2 = testService.sayHello("额外传递的参数", "西瓜");
+        
+        // 打印结果 => "service111：张三:西瓜"
+        System.out.println(result1); 
+        // 打印结果 => "service111：额外传递的参数:西瓜"
+        System.out.println(result2); 
     }
 }
 ```
